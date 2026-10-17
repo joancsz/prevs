@@ -35,22 +35,29 @@ write_prevs(df, "copy.rv0")           # byte-identical to the input
 ### Create a %MLT sensitivity
 
 ```python
-import datetime as dt
-from prevs import read_prevs, write_prevs, sensitivity
+from prevs import parse_name, read_prevs, write_prevs, sensitivity
 
-base = read_prevs("202611-prevs.rv0")
-start = dt.date(2026, 10, 31)          # first Saturday (week 1) of the PMO
+path = "202611-prevs.rv0"
+base = read_prevs(path)
+start, rev = parse_name(path)          # (2026-10-31, 0): week 1 starts on a Saturday
 targets = {"SE": 80, "S": 80}          # % of MLT per subsystem
 
 scaled, factors = sensitivity.build(base, start, targets)
-write_prevs(scaled, sensitivity.scenario_name(start, targets))   # 202611-prevs-SE080_S080.rv0
+write_prevs(scaled, sensitivity.scenario_name(start, targets, rev))   # 202611-prevs-SE080_S080.rv0
 print(factors)                         # {'SE': 0.729..., 'S': 0.400...}
 ```
+
+A prevs file has no dates inside it; the math needs the date week 1 starts to pick the monthly
+MLT and the week weights. `parse_name` gets that date from names like `YYYYmm-prevs[...].rv<N>`.
+The date is the Saturday on or before day 1 of the PMO month. For any other name, pass the date
+yourself: `pmo_start(2026, 11)` or `datetime.date(2026, 10, 31)`.
 
 Subsystems you leave out keep their flows. For a revision, pass `alter_from` (a week start date)
 to scale only that week onward, and `rev=` to name the file:
 
 ```python
+import datetime as dt
+
 scaled, f = sensitivity.build(base, start, {"SE": 90}, alter_from=start + dt.timedelta(days=7))
 sensitivity.scenario_name(start, {"SE": 90}, rev=1)              # 202611-prevs-SE090.rv1
 ```

@@ -2,12 +2,29 @@
 
 Layout per line: I6 sequential index, I5 posto, 6 x I10 weekly mean flows (m3/s), CRLF.
 """
+import datetime as dt
+import re
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 WEEKS = range(1, 7)
+_NAME = re.compile(r"(\d{4})(\d{2})-prevs.*\.rv(\d+)", re.IGNORECASE)
+
+
+def pmo_start(year: int, month: int) -> dt.date:
+    """Saturday that starts week 1 of the PMO: the Saturday on or before day 1 of the month."""
+    first = dt.date(year, month, 1)
+    return first - dt.timedelta(days=(first.weekday() - 5) % 7)
+
+
+def parse_name(path) -> tuple[dt.date, int]:
+    """(PMO start, revision) from a name like 202611-prevs.rv0 or 202611-prevs-SE080_S080.rv1."""
+    m = _NAME.fullmatch(Path(path).name)
+    if not m:
+        raise ValueError(f"{Path(path).name!r} is not named YYYYmm-prevs[...].rv<N>; pass the start date yourself")
+    return pmo_start(int(m[1]), int(m[2])), int(m[3])
 
 
 def read_prevs(path) -> pd.DataFrame:

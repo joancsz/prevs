@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from prevs import read_prevs, sensitivity, write_prevs
+from prevs import parse_name, pmo_start, read_prevs, sensitivity, write_prevs
 from prevs.ena import artificial_flows
 from prevs.io import excel_round
 
@@ -21,6 +21,17 @@ def test_round_trip_is_byte_identical(tmp_path):
 
 def test_excel_round_half_away_from_zero():
     assert excel_round(np.array([2.5, -2.5, 0.4, -0.4])).tolist() == [3, -3, 0, 0]
+
+
+def test_dates_from_name():
+    # Saturday on/before day 1; Aug/2026 starts on a Saturday itself (matches the workbook calendar)
+    assert pmo_start(2026, 11) == START
+    assert pmo_start(2026, 8) == dt.date(2026, 8, 1)
+    assert pmo_start(2027, 1) == dt.date(2026, 12, 26)
+    assert parse_name(BASE) == (START, 0)
+    assert parse_name("x/202612-prevs-SE080_S080.rv3") == (dt.date(2026, 11, 28), 3)
+    with pytest.raises(ValueError):
+        parse_name("my_forecast.txt")
 
 
 def test_month_weights():
