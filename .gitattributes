@@ -1,0 +1,2 @@
+# prevs fixtures must keep their CRLF bytes (tests compare them byte for byte)
+tests/data/** -text

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prevs"
+version = "0.1.0"
+description = "Read, write and build sensitivities of ONS prevs inflow forecast files"
+requires-python = ">=3.10"
+dependencies = ["pandas"]
+
+[project.optional-dependencies]
+dev = ["pytest", "openpyxl"]
+
+[tool.setuptools]
+packages = ["prevs"]
+
+[tool.setuptools.package-data]
+prevs = ["data/*.csv"]
