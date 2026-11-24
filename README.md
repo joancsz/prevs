@@ -76,8 +76,8 @@ for se in range(75, 125, 5):
 ```python
 from prevs.ena import subsystem_ena, pct_mlt
 
-ena = subsystem_ena(base, ["SE", "S", "NE"])   # MWmed per subsystem x week
-pct_mlt(ena, start)                            # fraction of MLT per week
+ena = subsystem_ena(base, ["SE", "S", "NE", "N"], start)   # MWmed per subsystem x week
+pct_mlt(ena, start)                                      # fraction of MLT per week
 ```
 
 ## How a factor is computed
@@ -85,7 +85,9 @@ pct_mlt(ena, start)                            # fraction of MLT per week
 This replicates the workbook exactly:
 
 1. **ENA per plant** = flow × adopted productivity. This includes the artificial postos: Tietê
-   pumping, Paraíba do Sul/Light (298, 126, 303 …) and Segredo (75).
+   pumping, Paraíba do Sul/Light (298, 126, 303 …), Segredo (75) and Belo Monte: 292 = 288 minus
+   the monthly hydrograph of the reduced stretch, clipped to [0, 13900], and 302 = 288 − 292. A week
+   that crosses into a new month mixes both months by days.
 2. **Weekly %MLT** = subsystem ENA / subsystem MLT for the month. A week that crosses into a new
    month uses a day-weighted MLT.
 3. **M** = mean %MLT over the PMO month, with each week weighted by its days inside that month.
@@ -96,7 +98,8 @@ This replicates the workbook exactly:
 ## Data
 
 `prevs/data/*.csv` hold the posto → subsystem/REE table (which also sets the output row order),
-the productivities of the ENA plants and the subsystem MLTs. They were extracted from the workbook.
+the productivities of the ENA plants, the subsystem MLTs and the Belo Monte hydrograph (the curve
+picked in the workbook, MÉDIO by default). They were extracted from the workbook.
 Regenerate them when ONS updates productivities:
 
 ```bash
@@ -109,13 +112,11 @@ python tools/extract_xlsm.py path/to/Matriz_e_Sensibilidade.xlsm
 pytest
 ```
 
-`tests/data/` contains a base prevs and the SE080_S080 file produced by Excel. The tests check that
+`tests/data/` contains a base prevs and the SE080_S080 and N080 files produced by Excel. The tests check that
 the output is byte-identical.
 
 ## Limits
 
-- **N (Norte) targets** raise `NotImplementedError`: postos 292/302 (Belo Monte) come from a
-  hydrograph table that is not ported yet.
 - **REE targets** are not supported yet; `postos.csv` already has the REE of each posto.
 - **Revisions (rv1+)** use the same approximate Excel formula, and no Excel reference file has
   checked them yet.

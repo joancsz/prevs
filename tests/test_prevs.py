@@ -10,6 +10,7 @@ from prevs.io import excel_round
 
 DATA = Path(__file__).parent / "data"
 BASE, SE80_S80 = DATA / "202611-prevs.rv0", DATA / "202611-prevs-SE080_S080.rv0"
+N80 = DATA / "202611-prevs-N080.rv0"  # Excel output, saved as -N80 and renamed to our 3-digit tag
 START = dt.date(2026, 10, 31)  # first PMO Saturday of 2026-11
 
 
@@ -48,6 +49,24 @@ def test_se80_s80_matches_excel(tmp_path):
     assert (tmp_path / name).read_bytes() == SE80_S80.read_bytes()
 
 
+def test_n80_matches_excel(tmp_path):
+    scaled, _ = sensitivity.build(read_prevs(BASE), START, {"N": 80})
+    name = sensitivity.scenario_name(START, {"N": 80})
+    assert name == N80.name
+
+    write_prevs(scaled, tmp_path / name)
+    assert (tmp_path / name).read_bytes() == N80.read_bytes()
+
+
+def test_belo_monte_hydrograph():
+    # Nov hydrograph 800, Dec 900, max turbine 13900; week 5 (Nov 28 - Dec 4) mixes 3 Nov + 4 Dec days
+    prevs = read_prevs(BASE)
+    prevs.loc[288] = [700, 900, 20000, 800, 850, 1000]
+    q = artificial_flows(prevs, START)
+    assert np.allclose(q[292], [0, 100, 13900, 0, 50 * 3 / 7, 100])
+    assert np.allclose(q[302], prevs.loc[288].to_numpy() - q[292])
+
+
 def test_alter_from_keeps_earlier_weeks():
     prevs = read_prevs(BASE)
     scaled, f = sensitivity.build(prevs, START, {"SE": 80}, alter_from=START + dt.timedelta(days=14))
@@ -71,7 +90,7 @@ def test_light_rules_across_thresholds():
     prevs.loc[202] = [10, 10, 10, 10, 30, 30]
     prevs.loc[203] = 100
     prevs.loc[129] = [500, 500, 500, 500, 500, 700]
-    q = artificial_flows(prevs)
+    q = artificial_flows(prevs, START)
     assert np.allclose(q[298], [100 * 119 / 190, 119, 140, 160, 160, 160])
     w = slice(3, 6)  # 315 = 260 -> 316 = 190, 304 = 70, 131 = 144
     assert np.allclose(q[304][w], 70) and np.allclose(q[131][w], 144)

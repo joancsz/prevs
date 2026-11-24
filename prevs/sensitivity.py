@@ -45,15 +45,13 @@ def factors(prevs: pd.DataFrame, start: dt.date, targets: dict[str, int], alter_
     """
     if unknown := set(targets) - set(SUBSYSTEMS):
         raise ValueError(f"unknown subsystems {sorted(unknown)}")
-    if "N" in targets:
-        raise NotImplementedError("N needs the Belo Monte hydrograph (postos 292/302), not ported yet")
     if fractional := [t for t in targets.values() if t != int(t)]:
         raise ValueError(f"targets must be whole %MLT (file names would collide): {fractional}")
     w = month_weights(start)
     k = _first_altered(start, alter_from)
     if not w[k:].sum():
         raise ValueError(f"altered weeks from {alter_from} have no days in the PMO month")
-    pct = pct_mlt(subsystem_ena(prevs, list(targets)), start).to_numpy()
+    pct = pct_mlt(subsystem_ena(prevs, list(targets), start), start).to_numpy()
     m = pct @ w / w.sum()
     a = pct[:, k:] @ w[k:] / w[k:].sum()
     return {sub: t / (100 * mi) * ai / mi for (sub, t), mi, ai in zip(targets.items(), m, a)}
