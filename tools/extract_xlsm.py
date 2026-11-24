@@ -68,6 +68,15 @@ def main(xlsm):
                 posto = int(ws.cell(r, 2).value)
                 w.writerow([posto, sub, bm_prod.get(posto, 0.0) if "Resumo" in ws.cell(r, 4).value else prod[posto]])
 
+    # hydrograph curve picked in C20 (A / B / MÉDIO, table G21:J33) and max turbine flow D23:D34
+    bm = openpyxl.load_workbook(xlsm, data_only=True)["Belo Monte Artifical"]  # MÉDIO = AVERAGE(A, B)
+    col = next(c for c in range(8, 11) if bm.cell(21, c).value == bm["C20"].value)
+    with open(DATA / "belo_monte.csv", "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["month", "hydrograph", "max_turbine"])
+        for m in range(1, 13):
+            w.writerow([m, bm.cell(21 + m, col).value, bm.cell(22 + m, 4).value])
+
     mlt = wb["MLT_SUB"]
     with open(DATA / "mlt_subsystem.csv", "w", newline="") as fh:
         w = csv.writer(fh)

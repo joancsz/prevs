@@ -12,7 +12,7 @@ from prevs.io import excel_round
 # Tietê/Pinheiros pumping postos: artificial = natural - 0.1*(161 - 117 - 118) - 117 - 118
 _TIETE = {37: 237, 38: 238, 39: 239, 40: 240, 42: 242, 43: 243, 45: 245, 46: 246, 66: 266}
 # natural postos read by artificial_flows
-_RULE_INPUTS = {73, 76, 117, 118, 119, 125, 129, 130, 161, 201, 202, 203, *_TIETE.values()}
+_RULE_INPUTS = {73, 76, 288, 117, 118, 119, 125, 129, 130, 161, 201, 202, 203, *_TIETE.values()}
 
 
 @cache
@@ -27,8 +27,25 @@ def mlt_subsystem() -> pd.DataFrame:
     return df
 
 
-def artificial_flows(prevs: pd.DataFrame) -> dict[int, np.ndarray]:
-    """Natural flows plus the artificial postos the ENA uses (REV-3 (2) / REV-4 (2) formulas)."""
+@cache
+def belo_monte() -> pd.DataFrame:
+    """Monthly hydrograph of the reduced stretch (Volta Grande do Xingu) and Belo Monte max turbine flow."""
+    return pd.read_csv(files("prevs") / "data" / "belo_monte.csv", index_col="month")
+
+
+def by_week(start: dt.date, n: int, f):
+    """f(month, week) per week; a week crossing months mixes both months by days (Excel's rule)."""
+    out = []
+    for i in range(n):
+        d0 = start + dt.timedelta(days=7 * i)
+        d1 = d0 + dt.timedelta(days=6)
+        same = d0.month == d1.month
+        out.append(f(d1.month, i) if same else (f(d1.month, i) * d1.day + f(d0.month, i) * (7 - d1.day)) / 7)
+    return out
+
+
+def artificial_flows(prevs: pd.DataFrame, start: dt.date) -> dict[int, np.ndarray]:
+    """Natural flows plus the artificial postos the ENA uses (REV-3 (2) / REV-4 (2) / Belo Monte formulas)."""
     q = {p: row.astype(float) for p, row in zip(prevs.index, prevs.to_numpy())}
     r = {p: excel_round(q[p]) for p in (117, 118, 119, 161)}
     q[116] = r[119] - r[118]
@@ -53,14 +70,19 @@ def artificial_flows(prevs: pd.DataFrame) -> dict[int, np.ndarray]:
     q[126] = np.where(q[127] <= 430, np.maximum(q[127] - 90, 0), 340)
     q[299] = q[130] - q[298] - q[203] + q[304]
     q[75] = q[76] + np.minimum(173.5, q[73] - 10)
+    # Belo Monte: 288 minus the hydrograph left in the reduced stretch, up to the max turbine flow
+    bm = belo_monte()
+    q[292] = np.array(by_week(start, len(q[288]), lambda m, i: np.clip(
+        q[288][i] - bm.hydrograph[m], 0, bm.max_turbine[m])))
+    q[302] = q[288] - q[292]
     return q
 
 
-def subsystem_ena(prevs: pd.DataFrame, subsystems) -> pd.DataFrame:
+def subsystem_ena(prevs: pd.DataFrame, subsystems, start: dt.date) -> pd.DataFrame:
     """ENA (MWmed) per subsystem x week: sum of productivity * flow over its plants."""
     if missing := sorted(_RULE_INPUTS - set(prevs.index)):
         raise KeyError(f"artificial postos need postos missing from the prevs: {missing}")
-    q = artificial_flows(prevs)
+    q = artificial_flows(prevs, start)
     plants = ena_plants()
     out = {}
     for sub in subsystems:
@@ -73,12 +95,6 @@ def subsystem_ena(prevs: pd.DataFrame, subsystems) -> pd.DataFrame:
 
 def pct_mlt(ena: pd.DataFrame, start: dt.date) -> pd.DataFrame:
     """ENA as a fraction of the subsystem MLT; a week crossing months uses a day-weighted MLT."""
-    mlt = mlt_subsystem()
-    cols = {}
-    for i, week in enumerate(ena.columns):
-        d0 = start + dt.timedelta(days=7 * i)
-        d1 = d0 + dt.timedelta(days=6)
-        m = mlt.loc[ena.index]
-        ref = m[d1.month] if d0.month == d1.month else (m[d1.month] * d1.day + m[d0.month] * (7 - d1.day)) / 7
-        cols[week] = ena[week] / ref
-    return pd.DataFrame(cols)
+    m = mlt_subsystem().loc[ena.index]
+    refs = by_week(start, len(ena.columns), lambda month, _: m[month])
+    return pd.DataFrame({week: ena[week] / ref for week, ref in zip(ena.columns, refs)})
